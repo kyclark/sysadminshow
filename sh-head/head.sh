@@ -51,7 +51,10 @@ if [[ $NUM_LINES -lt 1 ]]; then
 fi
 
 # Process the positional arguments
+FNUM=0
 for FILE in "$@"; do
+    FNUM=$((FNUM+1))
+
     # Verify this argument is a readable file
     if [[ ! -f "$FILE" ]] || [[ ! -r "$FILE" ]]; then
         echo "\"${FILE}\" is not a readable file"
@@ -59,17 +62,21 @@ for FILE in "$@"; do
     fi
 
     # Print a header in case of mulitiple files
-    echo "==> ${FILE} <=="
+    [[ $# -gt 1 ]] && echo "==> ${FILE} <=="
 
     # Initialize a counter variable
-    i=0
+    LINE_NUM=0
 
     # Loop through each line of the file
     while read -r LINE; do
         echo $LINE
 
         # Increment the counter and see if it's time to break
-        i=$((i+1))
-        [[ $i -eq $NUM_LINES ]] && break
+        LINE_NUM=$((LINE_NUM+1))
+        [[ $LINE_NUM -eq $NUM_LINES ]] && break
     done < "$FILE"
+
+    [[ $# -gt 1 ]] && [[ $FNUM -lt $# ]] && echo
 done
+
+exit 0

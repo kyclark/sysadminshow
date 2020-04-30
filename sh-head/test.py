@@ -7,7 +7,7 @@ import re
 import string
 from subprocess import getstatusoutput
 
-prg = './head.py'
+prg = './head.sh'
 sonnet = '../inputs/sonnet-29.txt'
 bustle = '../inputs/the-bustle.txt'
 gettysburg = '../inputs/gettysburg.txt'
@@ -35,8 +35,8 @@ def test_bad_file():
 
     bad = random_string()
     rv, out = getstatusoutput(f'{prg} {bad}')
-    assert rv != 0
-    assert re.search(f"No such file or directory: '{bad}'", out)
+    assert rv == 0
+    assert re.search(f'"{bad}" is not a readable file', out)
 
 
 # --------------------------------------------------
@@ -46,7 +46,7 @@ def test_bad_num():
     for bad in random.sample(range(-10, 1), 3):
         rv, out = getstatusoutput(f'{prg} -n {bad} {sonnet}')
         assert rv != 0
-        assert re.search(f'--num "{bad}" must be > 0', out)
+        assert re.search(f'-n "{bad}" must be > 0', out)
 
 
 # --------------------------------------------------
