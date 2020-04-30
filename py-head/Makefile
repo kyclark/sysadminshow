@@ -1,7 +1,4 @@
-.PHONY: test pdf
-
-pdf:
-	asciidoctor-pdf -o README.pdf README.adoc
+.PHONY: test
 
 test:
 	pytest -xv test.py
