@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Python implementation of head"""
+"""
+Author : Ken Youens-Clark
+Purpose: Python implementation of head
+         This version only handles one file!
+"""
 
 import argparse
 import os

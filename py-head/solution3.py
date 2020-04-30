@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Python implementation of head"""
+"""
+Author : Ken Youens-Clark
+Purpose: Python implementation of head
+         This version handles multiple files
+         and uses more advanced ideas like function definition,
+         list comprehensions, mock file handles, unit testing, etc.
+"""
 
 import argparse
 import io
