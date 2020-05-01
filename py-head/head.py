@@ -49,14 +49,11 @@ def main():
         if num_files > 1:
             print(f'==> {fh.name} <==')
 
-        num_chars = 0
         for line_num, line in enumerate(fh, start=1):
-            num_chars += len(line)
             print(line, end='')
             if line_num == args.num:
                 break
 
-        print(f'length = {num_chars}')
 
         if num_files > 1 and fnum < num_files:
             print()
