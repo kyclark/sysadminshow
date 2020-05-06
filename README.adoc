@@ -1,0 +1,463 @@
+= Systems programming with ``bash`` and Python 3
+
+On 30 April 2020, I had a chance to talk with Dustin Reybrouck for https://sysadminshow.com/about/[The SysAdminShow Podcast].
+We mostly discussed why sysadmins might like to add Python as a tool in addition to shell scripting.
+Most of his audience is probably familiar with `bash` or Powershell, so I showed how I might write somewhat simple but parameterized and documented version of `head` in `bash` and how it would be translated to Python 3.
+Following is a summary of our discussion.
+
+Sysadmins spend much of their lives on the command-line, so it makes sense that they would seek to automate tasks using the language of their command line -- something like `bash` or Powershell.
+While it is possible to write many useful programs in these languages, a higher-level language like Python might prove to be a better choice especially given that a Python program is portable between systems that natively understand `bash` (e.g., Linux or Mac) and Powershell (Window).
+As an exercise, let's write a `bash` implementation of the `head` command, then we'll compare how we could write it in Python.
+
+== Writing ``head`` in ``bash``
+
+Let's start by imagining how we might write our own implementation of the venerable `head` command.
+For example, given the text of the US Constitution, we would expect to see the first few lines of a given file, usually 10:
+
+----
+$ head ~/work/tiny_python_projects/inputs/const.txt
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+defence, promote the general Welfare, and secure the Blessings of Liberty to
+ourselves and our Posterity, do ordain and establish this Constitution for the
+United States of America.
+
+Article 1.
+
+Section 1
+All legislative Powers herein granted shall be vested in a Congress of the
+----
+
+And we would expect to be able to modify that number using an option like `-n`:
+
+----
+$ head -n 3 const.txt
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+defence, promote the general Welfare, and secure the Blessings of Liberty to
+----
+
+It's commonplace for command-line tools to respond to `-h` or `--help` with a "usage" statement about how the program should be invoked.
+In the case of `head` footnote:[Utilities like `head` or `grep` can vary among systems and distributions. I tried `head` on both Linux and Mac, and neither recognized the help flags.], it does not give a usage because we ask for it but rather because it does not recognize these as valid options.
+Still, it manages to produce a "usage" under some circumstances which is better than nothing:
+
+----
+$ head -h
+head: illegal option -- h
+usage: head [-n lines | -c bytes] [file ...]
+----
+
+== A ``bash`` version that handles one file
+
+Let's start off with a version in `bash` that handles just one file and a possible number of lines which will default to 10.
+If run with no arguments, it will print a "usage" statement:
+
+----
+$ ./simple-head.sh
+Usage: simple-head.sh FILE [NUM]
+----
+
+When run with a file as the only argument, it will print the first 10 lines:
+
+----
+$ ./simple-head.sh const.txt
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+defence, promote the general Welfare, and secure the Blessings of Liberty to
+ourselves and our Posterity, do ordain and establish this Constitution for the
+United States of America.
+
+Article 1.
+
+Section 1
+All legislative Powers herein granted shall be vested in a Congress of the
+----
+
+We can provide an optional second argument to change the number of lines we show:
+
+----
+$ ./simple-head.sh const.txt 2
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+----
+
+Note that the program fails rather gracelessly.
+For instance, if we give it a non-existent file:
+
+----
+$ ./simple-head.sh foo
+./simple-head.sh: line 24: foo: No such file or directory
+----
+
+Our program also fails to show an error if the second argument is not a number and will, in fact, print the entire file.
+Try running the program like so:
+
+----
+$ ./simple-head.sh const.txt foo
+----
+
+Still, it's instructive to look at this program:
+
+----
+#!/bin/bash <1>
+
+# 
+# Author : Ken Youens-Clark <kyclark@gmail.com> <2>
+# Purpose: simple bash implementation of `head`
+# 
+
+# Check number of arguments is 1 or 2
+if [[ $# -lt 1 ]] || [[ $# -gt 2 ]]; then       <3>
+    echo "Usage: $(basename "$0") FILE [NUM]"   <4>
+    exit 1                                      <5>
+fi
+
+FILE=$1       <6>
+NUM=${2:-10}  <7>
+LINE_NUM=0    <8>
+
+while read -r LINE; do                <9>
+    echo "$LINE"                      <10>
+    LINE_NUM=$((LINE_NUM+1))          <11>
+    if [[ $LINE_NUM -eq $NUM ]]; then <12>
+        break                         <13>
+    fi
+done < "$FILE"
+----
+
+<1> This line is often called the "shebang," and it is common to see the path to `bash` hard-coded like this. It's not necessarily best practice, however, as `bash` might well be located at `/usr/local/bin/bash`.
+<2> Any text following `#` is ignored by `bash`. Here we add comments to the program, but you can also use this to temporarily disable code. It's polite to document your code so that other might contact you with questions.
+<3> Everything in `bash` is a string, but we can use operators like `-lt` (less than) and `-gt` (greater than to get numeric comparisons. The `$#` variable holds the number of arguments to our program, so we're trying to see if we do not have exactly 1 or 2 arguments.
+<4> We print a "usage"-type statement to explain to the user how to invoke the program. The `FILE` is a required position argument while the `[NUM]` is shown in `[]` to indicate that it is optional.
+<5> We `exit` with a non-zero value (1 is fine) to indicate that the program failed to run as expected.
+<6> Since we know we have at least 1 argument, we can copy the value of the first argument in `$1` to our `FILE` variable.
+<7> We may or may not have a second argument, so we can either copy `$2` or a default value of `10` to our `NUM` variable.
+<8> Initialize a `LINE_NUM` variable to `0` so we can count how many lines of our file we have shown.
+<9> A `while` loop is a common idiom for reading a file line-by-line in `bash`.
+<10> The `echo` command will print text to the terminal.
+<11> The `$(())` evaluation will allow us to perform a bit of arithmetic with what is otherwise a string value. Here we want to add 1 to the value of `LINE_NUM`.
+<12> The `-eq` is the numeric equality operator in `bash`. Here we check if the `LINE_NUM` is equal to the number of lines we mean to show.
+<13> The `break` statement will cause the `while` loop to exit.
+
+== A complete implementation in ``bash``
+
+The previous `simple-head.sh` version shows some basic ideas of how to handle many systems-level tasks in `bash` such as:
+
+* Documenting the language of the program with a shebang line
+* Documenting the author and purpose program with comments
+* Parameterizing your program so as to values as arguments rather than hard-coding values
+* Documenting the program parameters with an automatically generated "usage" when needed by the user
+* Exiting the program with non-zero values when the program does not complete as normally expected
+* Defining reasonable default values for optional arguments
+
+Still, this is a rather sophomoric replacement for `head` because:
+
+* It does not handle multiple files
+* It fails to validate if the arguments are actually readable files
+* There is no `-n` option because the program handles only _positional_ arguments and so cannot handle _options_
+* The program will not print a "usage" for `-h`, again because it fails to handle options
+
+Let's write a better implementation that is a complete replacement for `head`:
+
+----
+#!/usr/bin/env bash <1>
+
+# 
+# Author : Ken Youens-Clark <kyclark@gmail.com> <2>
+# Purpose: bash implementation of `head`
+# 
+
+# Die on use of uninitialize variables
+set -u <3>
+
+# Default value for the argument
+NUM_LINES=10 <4>
+
+# A function to print the "usage"
+function USAGE() { <5>
+    printf "Usage:\n  %s -n NUM_LINES [FILE ...]\n\n" "$(basename "$0")"
+
+    echo "Options:"
+    echo " -n NUM_LINES"
+    echo
+    exit "${1:-0}"
+}
+
+# Die if we have no arguments at all
+[[ $# -eq 0 ]] && USAGE 1 <6>
+
+# Process command line options
+while getopts :n:h OPT; do <7>
+    case $OPT in           <8>
+        n)
+            NUM_LINES="$OPTARG" <9>
+            shift 2             <10>
+            ;;
+        h)
+            USAGE               <11>
+            ;;
+        :)
+            echo "Error: Option -$OPTARG requires an argument." <12>
+            exit 1
+            ;;
+        \?)
+            echo "Error: Invalid option: -${OPTARG:-""}" <13>
+            exit 1
+    esac
+done
+
+# Verify that NUM_LINES looks like a positive integer
+if [[ $NUM_LINES -lt 1 ]]; then            <14>
+    echo "-n \"${NUM_LINES}\" must be > 0"
+    exit 1
+fi
+
+# Process the positional arguments
+FNUM=0                <15>
+for FILE in "$@"; do  <16>
+    FNUM=$((FNUM+1))  <17>
+
+    # Verify this argument is a readable file
+    if [[ ! -f "$FILE" ]] || [[ ! -r "$FILE" ]]; then <18>
+        echo "\"${FILE}\" is not a readable file"
+        continue <19>
+    fi
+
+    # Print a header in case of mulitiple files
+    [[ $# -gt 1 ]] && echo "==> ${FILE} <==" <20>
+
+    # Initialize a counter variable
+    LINE_NUM=0 <21>
+
+    # Loop through each line of the file
+    while read -r LINE; do <22>
+        echo $LINE
+
+        # Increment the counter and see if it's time to break
+        LINE_NUM=$((LINE_NUM+1))
+        [[ $LINE_NUM -eq $NUM_LINES ]] && break <23>
+    done < "$FILE"
+
+    [[ $# -gt 1 ]] && [[ $FNUM -lt $# ]] && echo <24>
+done
+
+exit 0
+----
+
+<1> Using the `env` program (which is pretty universally located at `/usr/bin/env`) to find `bash` is more flexible than hard-coding the path as `/bin/bash`.
+<2> Same documentation as comments.
+<3> This will cause `bash` to die if we attempt to use an uninitialized variable and is one of the few safety features offered by the language.
+<4> Here we set a default value for the `NUM_LINES` to show which can be overridden by an option.
+<5> Since there are a multiple times I might want to show the usage and exit with an error (e.g., no arguments or as requested by `-h`), I can put this into a `function` to call later.
+<6> If the number of arguments to the program `$#` is 0, then exit with a "usage" statement and a non-zero value.
+<7> We can use `getopts` in `bash` to manually parse the command-line arguments. We are specifically looking for flags `-n` which takes a value and `-h` which does not.
+<8> `$OPT` will have the flag value such as `n` for `-n` or `h` for `-h`.
+<9> The `$OPTARG` will have the value for the `-n` flag. We can copy that to our `NUM_LINES` variable to save it.
+<10> Now that we have processed `-n 3`, for instance, we use `shift 2` to discard those two values from the program arguments `$@`.
+<11> If processing the `-h` flag, call the `USAGE` function which will cause the program to exit.
+<12> This handles when an option like `-n` does not have an accompanying value.
+<13> This handles an option we didn't define.
+<14> This use the `-lt` operator to coerce the `NUM_LINES` to a numeric value. If it is less than `-lt` 1, we throw an error and exit with a non-zero value.
+<15> Now that we have handled the optional arguments, we can handle the rest of the _positional_ arguments found in `$@`. We start off by defining a `FNUM` so we can track the file number we are working with. That is, this is the index value of the current file.
+<16> We can use a `for` loop to iterate through the positional arguments found in `$@`.
+<17> Add 1 to the `FNUM` variable.
+<18> The `-f` test will return a "true" value if the given argument is a file, and `!` will negate this. Ditto as `-r` will report if the argument is a readable file.
+<19> The `continue` statement will cause the `for` loop to immediately advance to the next iteration, skipping all the code below.
+<20> If the number of positional arguments is greater than `-gt` 1, then print a header showing the current file's name.
+<21> Initialize a line count variable for reading the file.
+<22> This is the same loop as before that we used to read a given number of lines from the file. This one is improved, however, because we check if the number argument from the user is actually a positive integer!
+<23> This is a shorter way to write a single-line `if` statement.
+<24> If there are multiple files to process and we're not currently on the last file, then print an extra newline to separate the outputs.
+
+If you are new to `bash` programming, the syntax will probably look rather cryptic!
+The entirely manual handling of the command-line options and positional arguments is especially cumbersome.
+I will admit this is not an easy program to write correctly, and, even when it finally works on my Linux and Max machines, I won't be able to give it to a Windows user unless they have something like WSL (Windows Subsystem for Linux) or Cygwin installed.
+
+Still, this program works rather well!
+It will print nice documentation if we run with no arguments or if you run `./head.sh -h`, which is actually an improvement over `head`:
+
+----
+$ ./head.sh
+Usage:
+  head.sh -n NUM_LINES [FILE ...]
+
+Options:
+ -n NUM_LINES
+----
+
+It rejects bad options:
+
+----
+$ ./head.sh -x 8 const.txt
+Error: Invalid option: -x
+----
+
+It can handle both options and positional arguments, provides a reasonable default for the `-n` option, and correctly skips non-file arguments:
+
+----
+$ ./head.sh -n 3 foo const.txt
+"foo" is not a readable file
+==> const.txt <==
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+defence, promote the general Welfare, and secure the Blessings of Liberty to
+----
+
+And it mimics the output from `head` for multiple files:
+
+----
+$ ./head.sh -n 1 const.txt simple-head.sh head.sh
+==> const.txt <==
+We the People of the United States, in Order to form a more perfect Union,
+
+==> simple-head.sh <==
+#!/bin/bash
+
+==> head.sh <==
+#!/usr/bin/env bash
+----
+
+For what it's worth, I used the included `new_bash.py` program to create this program.
+If you find yourself stuck writing a `bash` program and don't wish to start from scratch, this program might be useful to you.
+
+== Testing ``head.sh``
+
+I have included a `test.py` that is a Python program that will run the `head.sh` program to ensure it actually does what it is supposed to do.
+If you look at the contents of this program, you will see a number of functions with names that start with `test_`.
+This is because I use the `pytest` module/program to run these functions as a test suite.
+I like to use the `-x` flag to indicate that testing should halt at the first failing test and the `-v` flag for "verbose" output. 
+These can be specified individually or combined like `-xv` or `-vx`:
+
+----
+$ pytest -xv test.py
+============================= test session starts ==============================
+...
+
+test.py::test_exists PASSED                                              [ 14%]
+test.py::test_usage PASSED                                               [ 28%]
+test.py::test_bad_file PASSED                                            [ 42%]
+test.py::test_bad_num PASSED                                             [ 57%]
+test.py::test_default PASSED                                             [ 71%]
+test.py::test_n PASSED                                                   [ 85%]
+test.py::test_multiple_files PASSED                                      [100%]
+
+============================== 7 passed in 0.56s ===============================
+----
+
+It's a bit of a nuisance to have to write the tests for a program in a different language from the program itself, but I know of no testing framework in `bash` that I'd could use (or would like to learn) that can run a test suite such as the above!
+
+== Writing ``head.py`` in Python 3
+
+To write a similar version in Python, we'll rely heavily on the standard `argparse` module to handle the validation of all the command-line arguments as well as generating the "usage" statements.
+Here is a version that, similar to the `simple-head.py`, will handle just one file:
+
+----
+#!/usr/bin/env python3 <1>
+"""                    <2>
+Author : Ken Youens-Clark
+Purpose: Python implementation of head
+         This version only handles one file!
+"""
+
+import argparse        <3>
+import os
+import sys
+
+
+# --------------------------------------------------
+def get_args():        <4>
+    """Get command-line arguments"""  <5>
+
+    parser = argparse.ArgumentParser( <6>
+        description='Python implementation of head',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument('file',       <7>
+                        metavar='FILE',
+                        type=argparse.FileType('r'), <8>
+                        help='Input file')
+
+    parser.add_argument('-n',         <9>
+                        '--num',
+                        help='Number of lines',
+                        metavar='int',
+                        type=int,     <10>
+                        default=10)   <11>
+
+    args = parser.parse_args()        <12>
+
+    if args.num < 1:                  <13>
+        parser.error(f'--num "{args.num}" must be > 0') <14>
+
+    return args                       <15>
+
+
+# --------------------------------------------------
+def main():                           <16>
+    """Make a jazz noise here"""
+
+    args = get_args()                 <17>
+
+    for i, line in enumerate(args.file, start=1): <18>
+        print(line, end='') <19>
+        if i == args.num:   <20>
+            break           <21>
+
+
+# --------------------------------------------------
+if __name__ == '__main__':  <22>
+    main()
+----
+
+<1> The "shebang" uses the `env` program to find the first `python3` in our `$PATH`.
+<2> The triple quotes allow us to create a string that spans multiple lines. Here we're creating a string but not assigning it to a variable. This is a convention for creating documentation also called a "docstring." This docstring summarizes the program itself. I like to document at least who wrote it and why.
+<3> We can `import` code from other modules. While we can `import` several modules separated by commas, it's recommended to put each on a separate line. Specifically we want to use `argparse` to handle the command-line arguments, and we'll also use the `os` (operating system) and `sys` (systems) modules.
+<4> I like to always define a `get_args()` function that exclusively deals with `argparse` for creating the program's parameters and validating the arguments. I always place this first so I can see it immediately when I'm reading the program.
+<5> This is a docstring for the function. It's ignored like a comment would be, but it has significance to Python and would appear if I were to `import` this module and ask for `help(get_args)`.
+<6> This creates a `parser` that will handle the command-line arguments. I add a description for the program that will appear in any "usage" statements, and I always like to have `argparse` display any default values for the user.
+<7> Positional arguments have no leading dashes in their names. Here we define a single positional argument that we can refer to internally as `file`.
+<8> The default `type` for all arguments is a `str` (string). We can ask `argparse` to enforce a different type like `int` and it will print an error when the user fails to provide a value that can be parsed into an integer value. Here we are using the special `argparse` type that defined a "readable" (`'r'`) file. If the user provides anything other than a readable file, `argparse` will halt the program, print an error and usage, and exit with a non-zero value.
+<9> The leading `-` on `-n` (short name) and `--num` (long name) for the "number" argument means this will be an _option_. 
+<10> The user must provide a value that can be parsed into a `int` value.
+<11> The default value will be 10.
+<12> After defining the program's parameters, we ask the `parser` to parse the arguments. If there are any problems like the wrong number or types of arguments, `argparse` will stop the program here.
+<13> If we get to this point, the arguments were valid as far as `argparse` is concerned. We can perform additional manual checks such as verifying that `args.num` is greater than 0. 
+<14> The `parser.error()` function is a way for us to manually invoke the error-out function of `argparse`.
+<15> Functions in Python must explicitly `return` a value or the `None` will be returned by default. Here was want to return the `args` to the calling function.
+<16> Convention dictates the starting function be called `main()`, but this is not a requirement, and Python will not automatically call this function to start the program. Neither `get_args()` nor `main()` accept arguments, but, if they did, they would be listed in the parens.
+<17> All the work to define the parameters, validate the arguments, and handle help and usage has now been hidden in the `get_args()` function. We can think of this as a "unit" that encapsulates those ideas. If our program successfully calls `get_args()` and returns with some `args`, then we can move forward knowing the arguments are actually correct and useful.
+<18> We don't have to initialize a counting variable like in `bash` as we can use the `enumerate()` function to return the index and value of any sequence of items. Here the `args.file` is actually an _open file handle_ provided by `argparse` because we defined the `args.file` as a "file" type. I can use the `start` option to `enumerate()` to start counting at 1 instead of 0.
+<19> The `print()` function is like the `echo` statement in `bash`. Here there will be a newline stuck to the `line` from the file, so I use the `end=''` to indicate that `print()` should not add the customary newline to the output.
+<20> While `bash` uses `-eq` for numeric comparison and `==` for string equality, Python uses `==` for both.
+<21> Both Python and `bash` use `continue` and `break` in loops to skip and leave loops, respectively.
+<22> This is the idiom in Python to detect when a program/module is being run from the command line. Here we want to execute the `main()` function to start the program to running.
+
+== A complete implementation in Python
+
+In the interview, I mentioned a couple of Python programs that I use to create new programs:
+
+* `new_bash.py`: in the `sh-head` directory is a Python program I used to stub out the `head.sh` program
+* `new.py`: in the `py-head` directory is the Python program I used to create the `head.py` program
+
+Much of our discussion centered on how the `new.py` program creates a Python program with functions and uses the `argparse` module to define and document the program's parameters.
+We also discussed the `test.py` program which uses the `pytest` module/program to run a test suite on both the `head.sh` and `head.py` programs.
+All of these ideas are discussed in greater detail in _Tiny Python Projects_ available now from Manning.
+
+Finally, we discussed the use of `make` and `Makefile` to document and automate the running of tests and shortcuts and commands and such.
+I mentioned another tutorial I wrote here:
+
+https://github.com/kyclark/make-tutorial
+
+== Links
+
+* [Tiny Python Projects](https://www.manning.com/books/tiny-python-projects?a_aid=youens&a_bid=b6485d52)
+* https://github.com/kyclark/tiny_python_projects
+* [YouTube videos](https://www.youtube.com/user/kyclark)
+
+== Author
+
+Ken Youens-Clark 
+
+* kyclark@gmail.com
+* [@kycl4rk](https://twitter.com/kycl4rk)
+* [LinkedIn](https://www.linkedin.com/in/kycl4rk/)

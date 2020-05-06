@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # 
 # Author : Ken Youens-Clark <kyclark@gmail.com>
@@ -15,7 +15,7 @@ NUM_LINES=10
 function USAGE() {
     printf "Usage:\n  %s -n NUM_LINES [FILE ...]\n\n" "$(basename "$0")"
 
-    echo "Required arguments:"
+    echo "Options:"
     echo " -n NUM_LINES"
     echo
     exit "${1:-0}"
