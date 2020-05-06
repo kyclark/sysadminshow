@@ -759,5 +759,5 @@ I hope you may find this speeds you in your development of new Python programs!
 Ken Youens-Clark 
 
 * kyclark@gmail.com
-* [@kycl4rk](https://twitter.com/kycl4rk)
-* [LinkedIn](https://www.linkedin.com/in/kycl4rk/)
+* https://twitter.com/kycl4rk[@kycl4rk on Twitter]
+* https://www.linkedin.com/in/kycl4rk/[LinkedIn]
