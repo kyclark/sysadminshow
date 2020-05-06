@@ -27,7 +27,6 @@ def test_usage():
     rv, out = getstatusoutput(f'{prg} -h')
     assert rv == 0
     assert out.lower().startswith('usage')
-    assert False
 
 
 # --------------------------------------------------

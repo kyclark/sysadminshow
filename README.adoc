@@ -15,7 +15,7 @@ Let's start by imagining how we might write our own implementation of the venera
 For example, given the text of the US Constitution, we would expect to see the first few lines of a given file, usually 10:
 
 ----
-$ head ~/work/tiny_python_projects/inputs/const.txt
+$ head const.txt
 We the People of the United States, in Order to form a more perfect Union,
 establish Justice, insure domestic Tranquility, provide for the common
 defence, promote the general Welfare, and secure the Blessings of Liberty to
@@ -127,7 +127,7 @@ done < "$FILE"
 
 <1> This line is often called the "shebang," and it is common to see the path to `bash` hard-coded like this. It's not necessarily best practice, however, as `bash` might well be located at `/usr/local/bin/bash`.
 <2> Any text following `#` is ignored by `bash`. Here we add comments to the program, but you can also use this to temporarily disable code. It's polite to document your code so that other might contact you with questions.
-<3> Everything in `bash` is a string, but we can use operators like `-lt` (less than) and `-gt` (greater than to get numeric comparisons. The `$#` variable holds the number of arguments to our program, so we're trying to see if we do not have exactly 1 or 2 arguments.
+<3> Everything in `bash` is a string, but we can use operators like `-lt` (less than) and `-gt` (greater than) to get numeric comparisons. The `$#` variable holds the number of arguments to our program, so we're trying to see if we do not have exactly 1 or 2 arguments.
 <4> We print a "usage"-type statement to explain to the user how to invoke the program. The `FILE` is a required position argument while the `[NUM]` is shown in `[]` to indicate that it is optional.
 <5> We `exit` with a non-zero value (1 is fine) to indicate that the program failed to run as expected.
 <6> Since we know we have at least 1 argument, we can copy the value of the first argument in `$1` to our `FILE` variable.
@@ -374,7 +374,7 @@ def get_args():        <4>
 
     parser.add_argument('file',       <7>
                         metavar='FILE',
-                        type=argparse.FileType('r'), <8>
+                        type=argparse.FileType('rt'), <8>
                         help='Input file')
 
     parser.add_argument('-n',         <9>
@@ -416,7 +416,7 @@ if __name__ == '__main__':  <22>
 <5> This is a docstring for the function. It's ignored like a comment would be, but it has significance to Python and would appear if I were to `import` this module and ask for `help(get_args)`.
 <6> This creates a `parser` that will handle the command-line arguments. I add a description for the program that will appear in any "usage" statements, and I always like to have `argparse` display any default values for the user.
 <7> Positional arguments have no leading dashes in their names. Here we define a single positional argument that we can refer to internally as `file`.
-<8> The default `type` for all arguments is a `str` (string). We can ask `argparse` to enforce a different type like `int` and it will print an error when the user fails to provide a value that can be parsed into an integer value. Here we are using the special `argparse` type that defined a "readable" (`'r'`) file. If the user provides anything other than a readable file, `argparse` will halt the program, print an error and usage, and exit with a non-zero value.
+<8> The default `type` for all arguments is a `str` (string). We can ask `argparse` to enforce a different type like `int` and it will print an error when the user fails to provide a value that can be parsed into an integer value. Here we are using the special `argparse` type that defined a "readable" (`'r'`) "text" (`'t'`) file. If the user provides anything other than a readable text file, `argparse` will halt the program, print an error and usage, and exit with a non-zero value.
 <9> The leading `-` on `-n` (short name) and `--num` (long name) for the "number" argument means this will be an _option_. 
 <10> The user must provide a value that can be parsed into a `int` value.
 <11> The default value will be 10.
@@ -432,27 +432,327 @@ if __name__ == '__main__':  <22>
 <21> Both Python and `bash` use `continue` and `break` in loops to skip and leave loops, respectively.
 <22> This is the idiom in Python to detect when a program/module is being run from the command line. Here we want to execute the `main()` function to start the program to running.
 
+The above program has been contributed as `py-head/solution1.py`, and you can run it to see how it will create usage for no arguments:
+
+----
+$ ./solution1.py
+usage: solution1.py [-h] [-n int] FILE
+solution1.py: error: the following arguments are required: FILE
+----
+
+Note that we did not define the `-h` and `--help` flags to `argparse` as those are reserved specifically for generating help:
+
+----
+$ ./solution1.py -h
+usage: solution1.py [-h] [-n int] FILE
+
+Python implementation of head
+
+positional arguments:
+  FILE               Input file
+
+optional arguments:
+  -h, --help         show this help message and exit
+  -n int, --num int  Number of lines (default: 10)
+----
+
+Note that `argparse` can actually handle options following positional arguments:
+
+----
+$ ./solution1.py const.txt -n 3
+We the People of the United States, in Order to form a more perfect Union,
+establish Justice, insure domestic Tranquility, provide for the common
+defence, promote the general Welfare, and secure the Blessings of Liberty to
+----
+
 == A complete implementation in Python
 
-In the interview, I mentioned a couple of Python programs that I use to create new programs:
+The previous Python version demonstrates many shortcuts to creating usable and documented programs that are easier to write and more reliable than the `bash` version.
+Still, this program is not yet a full replacement either for `head` or even `head.sh`.
+Let's see how we can expand the program to handle _one or more_ positional arguments:
 
-* `new_bash.py`: in the `sh-head` directory is a Python program I used to stub out the `head.sh` program
-* `new.py`: in the `py-head` directory is the Python program I used to create the `head.py` program
+----
+#!/usr/bin/env python3
+"""
+Author : Ken Youens-Clark
+Purpose: Python implementation of head
+         This version handles multiple files
+         and is very similar to the bash version.
+"""
 
-Much of our discussion centered on how the `new.py` program creates a Python program with functions and uses the `argparse` module to define and document the program's parameters.
-We also discussed the `test.py` program which uses the `pytest` module/program to run a test suite on both the `head.sh` and `head.py` programs.
-All of these ideas are discussed in greater detail in _Tiny Python Projects_ available now from Manning.
+import argparse
 
-Finally, we discussed the use of `make` and `Makefile` to document and automate the running of tests and shortcuts and commands and such.
-I mentioned another tutorial I wrote here:
 
-https://github.com/kyclark/make-tutorial
+# --------------------------------------------------
+def get_args():
+    """Get command-line arguments"""
 
-== Links
+    parser = argparse.ArgumentParser(
+        description='Python implementation of head',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-* [Tiny Python Projects](https://www.manning.com/books/tiny-python-projects?a_aid=youens&a_bid=b6485d52)
-* https://github.com/kyclark/tiny_python_projects
-* [YouTube videos](https://www.youtube.com/user/kyclark)
+    parser.add_argument('file',
+                        metavar='FILE',
+                        type=argparse.FileType('rt'),
+                        nargs='+', <1>
+                        help='Input file')
+
+    parser.add_argument('-n',
+                        '--num',
+                        help='Number of lines',
+                        metavar='int',
+                        type=int,
+                        default=10)
+
+    args = parser.parse_args()
+
+    if args.num < 1:
+        parser.error(f'--num "{args.num}" must be > 0')
+
+    return args
+
+
+# --------------------------------------------------
+def main():
+    """Make a jazz noise here"""
+
+    args = get_args()
+    num_files = len(args.file) <2>
+
+    for fnum, fh in enumerate(args.file, start=1):    <3>
+        if num_files > 1:                             <4>
+            print(f'==> {fh.name} <==')               <5>
+
+        for line_num, line in enumerate(fh, start=1): <6>
+            print(line, end='')
+            if line_num == args.num:
+                break
+
+
+        if num_files > 1 and fnum < num_files:        <7>
+            print()
+
+
+# --------------------------------------------------
+if __name__ == '__main__':
+    main()
+---- 
+
+<1> The `nargs` option can take `*` to indicate zero or more, `+` for one or more, and `?` for zero or one.
+<2> Since I'll refer to the number of files (`num_files`) several times, I put them into a variable. The `args.file` argument is now a `list` of open file handles. I can use the `len()` function to ask the _length_ of this `list` which will tell me the number of files provided as arguments. I know they are actually readable text files because of the `type` constraint I added to this argument.
+<3> Again I want both the index (position) and value of each element in `args.file`, so I can use `enumerate()`, starting the counting at 1 instead of 0.
+<4> Decide whether to print a header.
+<5> I call the variable `fh` to remind me that this is an open file handle. I can get the name of the file itself using `fh.name`. The `f''` (f-string) allows me to interpolate the `fh.name` value inside the string given to `print()`.
+<6> A second loop to iterate over the lines in the file. This is the same code as above.
+<7> Decide whether to `print()` an extra newline between multiple files.
+
+This version is a full implementation of a typical `head` program and demonstrates many common systems-level programming concepts a sysadmin might need.
+The `os` and `sys` modules are particularly rich in functions for dealing with files and directories and permissions and the like.
+The `argparse` code allows one to outsource program validation to another module allowing the coder to focus on the tasks at hand rather than the implementation of tedious and repetitive tasks.
+
+== Testing the ``head.py`` program
+
+> “Without requirements or design, programming is the art of adding bugs to an empty text file." - Louis Srygley
+
+Python's `pytest` module provides a rather simple and elegant way to construct a test suite.
+I have included a `test.py` to demonstrate how I typically write _integration tests_ which exercise a program externally and verify that they work as intended.
+In my own programs, I also tend to write many _unit tests_ that similarly exercise _individual functions_ (the "units" of programming) to ensure they work as expected.
+
+By combining both unit and integration tests, I come to have greater confidence that my code works.
+More importantly, I feel free to refactor my code to improve algorithms and add features without fearing I will break features that worked previously.
+When testing, I always run the entire test suite in such a way that testing halts at the first failure:
+
+----
+$ make test
+pytest -xv test.py
+============================= test session starts ==============================
+...
+
+test.py::test_exists PASSED                                              [ 14%]
+test.py::test_usage PASSED                                               [ 28%]
+test.py::test_bad_file PASSED                                            [ 42%]
+test.py::test_bad_num PASSED                                             [ 57%]
+test.py::test_default PASSED                                             [ 71%]
+test.py::test_n PASSED                                                   [ 85%]
+test.py::test_multiple_files PASSED                                      [100%]
+
+============================== 7 passed in 0.84s ===============================
+----
+
+This `test.py` is almost identical to the one for the `head.sh`.
+The differences mostly account for how I felt it best to handle errors in the two programs.
+The best improvement, of course, is that now my tests are in the same language as the program, so it's easier for me to go back and forth between them!
+
+== A more advanced version
+
+The previous version of `head.py` is reflected in the `solution2.py` version.
+We can briefly look at `solution3.py` to explore more advanced ideas in Python like function definition, list comprehensions, mock file handles, and unit testing.
+
+----
+#!/usr/bin/env python3
+"""
+Author : Ken Youens-Clark
+Purpose: Python implementation of head
+         This version handles multiple files
+         and uses more advanced ideas like function definition,
+         list comprehensions, mock file handles, unit testing, etc.
+"""
+
+import argparse
+import io
+
+
+# --------------------------------------------------
+def get_args():
+    """Get command-line arguments"""
+
+    parser = argparse.ArgumentParser(
+        description='Python implementation of head',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument('file',
+                        metavar='FILE',
+                        type=argparse.FileType('rt'),
+                        nargs='+',
+                        help='Input file')
+
+    parser.add_argument('-n',
+                        '--num',
+                        help='Number of lines',
+                        metavar='int',
+                        type=int,
+                        default=10)
+
+    args = parser.parse_args()
+
+    if args.num < 1:
+        parser.error(f'--num "{args.num}" must be > 0')
+
+    return args
+
+
+# --------------------------------------------------
+def main():
+    """Make a jazz noise here"""
+
+    args = get_args()
+    show_header = len(args.file) > 1 <1>
+    heads = [head(fh, args.num, show_header) for fh in args.file] <2>
+    print('\n'.join(heads)) <3>
+
+
+# --------------------------------------------------
+def head(fh, num, show_header): <4>
+    """Return num lines from file handle"""
+
+    lines = [f'==> {fh.name} <==\n'] if show_header else [] <5>
+    for line_num, line in enumerate(fh, start=1): <6>
+        lines.append(line)
+        if line_num == num:
+            break
+
+    return ''.join(lines) <7>
+
+
+# --------------------------------------------------
+def test_head(): <8>
+    """Test head"""
+
+    assert head(io.StringIO('foo\nbar\nbaz\n'), 1, False) == 'foo\n' <9>
+    assert head(io.StringIO('foo\nbar\nbaz\n'), 2, False) == 'foo\nbar\n' <10>
+
+
+# --------------------------------------------------
+if __name__ == '__main__':
+    main()
+----
+
+<1> Whether or not we show a header between each file is a function of there being 1 or more files.
+<2> We use a list comprehension to create the `head` of each file.
+<3> `print()` all the values of `head()` for each file.
+<4> Here we define a function called `head()` that takes three arguments.
+<5> We initialize a `lines` variable using an `if` expression that hinges on whether to `show_header`.
+<6> This is the same logic as before, but now rather than calling `print()` on each `line`, we append it to the `list` of `lines`.
+<7> Return the `lines` joined on the empty string. Note that each `line` still has any newline from the file.
+<8> Any function starting with `test_` will be run by `pytest`. Here I define a _unit test_ to run the `head()` function.
+<9> The `head()` function expects something like an open file handle. I can use `io.StringIO` to make a sort of mock file handle from a string. Each value ending with a newline `\n` will appear as a "line" of text.
+<10> The `assert` statement will throw an exception if the given value does not evaluate as "true" (but not necessarily as `True`). Here I want the `head()` function to return the string `foo\nbar\n` when I run the function with the given values.
+
+I can copy this version to `head.py` (or modify `test.py` to use `solution3.py` instead of `head.py`_ and run `pytest -xv test.py` to validate the program.
+Additionally, I can run `pytest` directly on the program to run my _unit tests_:
+
+----
+$ pytest -xv solution3.py
+============================= test session starts ==============================
+...
+
+solution3.py::test_head PASSED                                           [100%]
+
+============================== 1 passed in 0.01s ===============================
+----
+
+As programs grow in length and complexity, it makes more sense to write small, tested functions that can be composed into larger, more stable programs.
+
+== Creating new programs with ``argparse`` and ``new.py``
+
+Similar to the `new_bash.py` program I mentioned in the `bash` section, I have included the `new.py` program I use to create new Python programs that use `argparse` to validate arguments.
+You run it with `-h` for help, of course:
+
+----
+$ ./new.py -h
+usage: new.py [-h] [-n NAME] [-e EMAIL] [-p PURPOSE] [-f] program
+
+Create Python argparse program
+
+positional arguments:
+  program               Program name
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n NAME, --name NAME  Name for docstring (default: Ken Youens-Clark)
+  -e EMAIL, --email EMAIL
+                        Email for docstring (default: kyclark@gmail.com)
+  -p PURPOSE, --purpose PURPOSE
+                        Purpose for docstring (default: Rock the Casbah)
+  -f, --force           Overwrite existing (default: False)
+----
+
+If I wanted to create, for instance, a Python implementation of `cat` now, I might do this:
+
+----
+$ ./new.py cat.py
+Done, see new script "cat.py."
+----
+
+And now I have a `cat.py` program that I can immediately execute that shows the typical kinds of positional and optional parameters a program might have:
+
+----
+$ ./cat.py -h
+usage: cat.py [-h] [-a str] [-i int] [-f FILE] [-o] str
+
+Rock the Casbah
+
+positional arguments:
+  str                   A positional argument
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -a str, --arg str     A named string argument (default: )
+  -i int, --int int     A named integer argument (default: 0)
+  -f FILE, --file FILE  A readable file (default: None)
+  -o, --on              A boolean flag (default: False)
+----
+
+You can modify the `get_args()` function to reflect the needs of your new program.
+Place this program into your `$PATH` to use system-wide whenever you need to create a new Python program.
+I hope you may find this speeds you in your development of new Python programs!
+
+== Going further
+
+* https://www.manning.com/books/tiny-python-projects?a_aid=youens&a_bid=b6485d52[Tiny Python Projects]: All of these ideas about `argparse` and testing are discussed in greater detail in this book available now from http://www.manning.com[Manning Publications].
+* https://github.com/kyclark/make-tutorial[Make tutorial]: Dustin and I also briefly discussed the use of `make` and `Makefile` to document and automate the running of tests and shortcuts and commands and such.
+* https://github.com/kyclark/tiny_python_projects[GitHub repo]: All the code and tests for Tiny Python Projects
+* https://www.youtube.com/user/kyclark[YouTube]: Videos for the chapters of Tiny Python Projects that demonstrate how to start writing Python programs and work through the requirements and tests and solutions.
 
 == Author
 
